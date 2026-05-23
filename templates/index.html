@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLCV — Monitor de Câmera</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header .logo {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #e94560;
+      letter-spacing: 2px;
+    }
+
+    header .subtitle {
+      font-size: 0.82rem;
+      color: #8b949e;
+    }
+
+    .dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #3fb950;
+      animation: blink 2s infinite;
+      margin-left: auto;
+    }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid #30363d;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8b949e;
+    }
+
+    .card-body { padding: 16px; }
+
+    /* Video */
+    .video-wrap { position: relative; }
+
+    #video-feed {
+      width: 100%;
+      display: block;
+      background: #000;
+    }
+
+    #status-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: all 0.3s;
+    }
+
+    .badge-safe  { background: rgba(31,111,31,0.85); color: #3fb950; }
+    .badge-alert { background: rgba(180,30,30,0.9);  color: #ff8080;
+                   animation: pulse 0.8s infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+    /* Sidebar */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #8b949e;
+    }
+
+    .stat .value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #e94560;
+      line-height: 1;
+    }
+
+    .stat .sub {
+      font-size: 0.75rem;
+      color: #484f58;
+    }
+
+    #status-text {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .status-safe  { color: #3fb950; }
+    .status-alert { color: #e94560; }
+
+    #last-dt {
+      font-size: 0.85rem;
+      color: #8b949e;
+      min-height: 1.2em;
+    }
+
+    /* Log */
+    #log-list {
+      list-style: none;
+      max-height: 160px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+    }
+
+    #log-list li {
+      padding: 4px 0;
+      border-bottom: 1px solid #21262d;
+      color: #8b949e;
+    }
+
+    #log-list li.alert { color: #ff8080; font-weight: 600; }
+
+    @media (max-width: 768px) {
+      .container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">SLCV</span>
+  <span class="subtitle">Sistema de Monitoramento por Câmera</span>
+  <span class="dot" id="live-dot" title="Online"></span>
+</header>
+
+<div class="container">
+
+  <!-- Feed principal -->
+  <div class="card">
+    <div class="card-header">Camera ao Vivo</div>
+    <div class="video-wrap">
+      <img id="video-feed" src="/video_feed" alt="Camera feed">
+      <span id="status-badge" class="badge-safe">SEGURO</span>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="card">
+      <div class="card-header">Status atual</div>
+      <div class="card-body stat">
+        <span class="label">Câmera</span>
+        <span class="value" id="status-text" style="font-size:1.1rem">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Detecções totais</div>
+      <div class="card-body stat">
+        <span class="value" id="detection-count">0</span>
+        <span class="sub">desde o início da sessão</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Emails enviados</div>
+      <div class="card-body stat">
+        <span class="value" id="alerts-sent">0</span>
+        <span class="sub">alertas por email</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Última detecção</div>
+      <div class="card-body">
+        <span id="last-dt">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Log de eventos</div>
+      <div class="card-body" style="padding:8px 12px">
+        <ul id="log-list"></ul>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+  const logList = document.getElementById('log-list');
+  let prevDetected = null;
+
+  function addLog(msg, isAlert = false) {
+    const li = document.createElement('li');
+    if (isAlert) li.classList.add('alert');
+    const now = new Date().toLocaleTimeString('pt-BR');
+    li.textContent = `[${now}] ${msg}`;
+    logList.prepend(li);
+    while (logList.children.length > 50) logList.lastChild.remove();
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/status');
+      if (!r.ok) throw new Error('offline');
+      const d = await r.json();
+
+      document.getElementById('live-dot').style.background = '#3fb950';
+
+      const badge  = document.getElementById('status-badge');
+      const stText = document.getElementById('status-text');
+
+      if (d.person_detected) {
+        badge.textContent  = '⚠ PESSOA DETECTADA';
+        badge.className    = 'badge-alert';
+        stText.textContent = 'Pessoa detectada!';
+        stText.className   = 'status-alert';
+      } else {
+        badge.textContent  = '✓ SEGURO';
+        badge.className    = 'badge-safe';
+        stText.textContent = 'Área segura';
+        stText.className   = 'status-safe';
+      }
+
+      document.getElementById('detection-count').textContent = d.detection_count;
+      document.getElementById('alerts-sent').textContent     = d.alerts_sent;
+
+      if (d.last_detection) {
+        document.getElementById('last-dt').textContent =
+          new Date(d.last_detection).toLocaleString('pt-BR');
+      }
+
+      if (prevDetected !== null && !prevDetected && d.person_detected) {
+        addLog('Pessoa detectada!', true);
+      } else if (prevDetected !== null && prevDetected && !d.person_detected) {
+        addLog('Área livre novamente.');
+      }
+      prevDetected = d.person_detected;
+
+    } catch {
+      document.getElementById('live-dot').style.background = '#f85149';
+      document.getElementById('status-text').textContent = 'Sem conexão';
+    }
+  }
+
+  addLog('Monitor iniciado.');
+  setInterval(poll, 1000);
+  poll();
+</script>
+</body>
+</html>
