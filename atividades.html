@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel de Atividades</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card-bg: #ffffff;
+      --border: #e2e4e9;
+      --text: #1a1d23;
+      --text-muted: #6b7280;
+      --text-xmuted: #9ca3af;
+      --accent: #3b5bdb;
+      --accent-light: #eef2ff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+
+      /* status */
+      --s-todo-bg: #f1f3f5;      --s-todo-c: #495057;
+      --s-doing-bg: #e7f5ff;     --s-doing-c: #1971c2;
+      --s-review-bg: #fff3bf;    --s-review-c: #e67700;
+      --s-remind-bg: #fff0f6;    --s-remind-c: #c2255c;
+      --s-hold-bg: #f3f0ff;      --s-hold-c: #7048e8;
+      --s-done-bg: #ebfbee;      --s-done-c: #2f9e44;
+
+      /* priority */
+      --p-high: #fa5252;
+      --p-med: #fd7e14;
+      --p-low: #51cf66;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    /* ── Header ── */
+    header {
+      max-width: 1400px;
+      margin: 0 auto 28px;
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header-title h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -.03em;
+      color: var(--text);
+    }
+    .header-title p {
+      font-size: .85rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .search-wrap { position: relative; }
+    .search-wrap input {
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px 7px 34px;
+      font-size: .85rem;
+      width: 220px;
+      background: var(--card-bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+    .filter-btn {
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: .82rem;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      transition: all .15s;
+    }
+    .filter-btn:hover, .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .updated-badge {
+      font-size: .78rem;
+      color: var(--text-xmuted);
+      white-space: nowrap;
+    }
+
+    /* ── Grid ── */
+    .grid {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── List card ── */
+    .list-card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .list-card.placeholder { border-style: dashed; background: transparent; }
+
+    .list-header {
+      padding: 16px 18px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1.5px solid var(--border);
+    }
+    .list-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .list-meta { flex: 1; min-width: 0; }
+    .list-name { font-size: .95rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .list-source { font-size: .72rem; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--text-xmuted); margin-top: 1px; }
+    .list-count {
+      font-size: .78rem; font-weight: 600;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 20px;
+      padding: 2px 9px;
+      flex-shrink: 0;
+    }
+    .list-count.zero { background: var(--bg); color: var(--text-muted); }
+
+    /* ── Tasks ── */
+    .tasks { padding: 4px 0; max-height: 520px; overflow-y: auto; }
+    .tasks::-webkit-scrollbar { width: 4px; }
+    .tasks::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .task-item {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      transition: background .1s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-item:hover { background: #fafbfc; }
+
+    .task-left { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; }
+    .priority-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 6px;
+    }
+    .p-Alta, .p-1\.\ Alta { background: var(--p-high); }
+    .p-Média, .p-2\.\ Média { background: var(--p-med); }
+    .p-Baixa, .p-3\.\ Baixa { background: var(--p-low); }
+    .p-none { background: var(--border); }
+
+    .task-body { flex: 1; min-width: 0; }
+    .task-name {
+      font-size: .875rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--text);
+      word-break: break-word;
+    }
+    .task-name.hidden-task { display: none; }
+
+    .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: .72rem; font-weight: 500;
+      border-radius: 6px; padding: 2px 7px;
+      white-space: nowrap;
+    }
+    .badge-todo    { background: var(--s-todo-bg);   color: var(--s-todo-c); }
+    .badge-doing   { background: var(--s-doing-bg);  color: var(--s-doing-c); }
+    .badge-review  { background: var(--s-review-bg); color: var(--s-review-c); }
+    .badge-remind  { background: var(--s-remind-bg); color: var(--s-remind-c); }
+    .badge-hold    { background: var(--s-hold-bg);   color: var(--s-hold-c); }
+    .badge-done    { background: var(--s-done-bg);   color: var(--s-done-c); }
+    .badge-tag     { background: var(--bg); color: var(--text-muted); }
+    .badge-date    { background: var(--bg); color: var(--text-muted); }
+    .badge-overdue { background: #fff5f5; color: #c92a2a; }
+
+    .task-desc {
+      font-size: .78rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Placeholder ── */
+    .placeholder-body {
+      padding: 32px 18px;
+      text-align: center;
+    }
+    .placeholder-body .ph-icon { font-size: 2rem; margin-bottom: 10px; }
+    .placeholder-body p { font-size: .85rem; color: var(--text-muted); line-height: 1.5; }
+    .placeholder-body strong { color: var(--text); }
+
+    /* ── Section divider ── */
+    .section-label {
+      max-width: 1400px;
+      margin: 28px auto 12px;
+      font-size: .78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-xmuted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      padding: 28px 18px;
+      text-align: center;
+      font-size: .83rem;
+      color: var(--text-xmuted);
+    }
+
+    /* ── External link icon ── */
+    .ext-link { opacity: 0; flex-shrink: 0; color: var(--text-xmuted); margin-top: 2px; }
+    .task-item:hover .ext-link { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>Painel de Atividades</h1>
+    <p>Visão consolidada das suas listas de tarefas</p>
+  </div>
+  <div class="header-actions">
+    <div class="search-wrap">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search" placeholder="Buscar tarefa…" oninput="filterTasks()" />
+    </div>
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">Todas</button>
+    <button class="filter-btn" data-filter="doing" onclick="setFilter('doing', this)">Em andamento</button>
+    <button class="filter-btn" data-filter="overdue" onclick="setFilter('overdue', this)">Vencidas</button>
+    <span class="updated-badge" id="updated-at"></span>
+  </div>
+</header>
+
+<div class="section-label">Notion</div>
+<div class="grid" id="grid-notion"></div>
+
+<div class="section-label">iPhone Lembretes</div>
+<div class="grid" id="grid-reminders"></div>
+
+<script>
+const TODAY = new Date('2026-05-23');
+
+function fmt(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function isOverdue(iso) {
+  if (!iso) return false;
+  return new Date(iso + 'T00:00:00') < TODAY;
+}
+function statusBadge(s) {
+  const map = {
+    'Não iniciado': ['badge-todo', 'A fazer'],
+    'A Fazer':      ['badge-todo', 'A fazer'],
+    'Em andamento': ['badge-doing', 'Em andamento'],
+    'Em Andamento': ['badge-doing', 'Em andamento'],
+    'Em Revisão':   ['badge-review', 'Em revisão'],
+    'Lembrete':     ['badge-remind', 'Lembrete'],
+    'On-hold':      ['badge-hold', 'On-hold'],
+    'Concluído':    ['badge-done', 'Concluído'],
+  };
+  const [cls, label] = map[s] || ['badge-todo', s || '—'];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// ── DATA ────────────────────────────────────────────────────────────────────
+
+const DATA = {
+  notionLists: [
+    {
+      id: 'tarefas',
+      name: 'Controle de Tarefas',
+      icon: '✅',
+      url: 'https://www.notion.so/2fd1099f554d8053a051dc379ce15ac3',
+      tasks: [
+        { name: 'Agendar gira fazendas pecuária', status: 'Não iniciado', priority: null, prazo: null, tags: [], desc: 'Aguardando retorno André', url: 'https://www.notion.so/3691099f554d80ae8bc5e9c617d16a60' },
+        { name: 'Contrato Fluere', status: 'Não iniciado', priority: null, prazo: null, tags: ['Fluere'], desc: '', url: 'https://www.notion.so/3681099f554d80ec9cfdc90cd5264174' },
+        { name: 'Report Q1/26', status: 'Em andamento', priority: null, prazo: null, tags: [], desc: '', url: 'https://www.notion.so/3681099f554d80319b0bc7fbd244a636' },
+        { name: 'Enviar mensagem CEO La Vita', status: 'Não iniciado', priority: null, prazo: null, tags: [], desc: '', url: 'https://www.notion.so/3641099f554d804883c3f811d7b8c013' },
+        { name: 'Enviar Mensagem Mateus – Randon Ventures', status: 'Não iniciado', priority: null, prazo: null, tags: [], desc: '', url: 'https://www.notion.so/3641099f554d8032b1bfe4d332d1d6e2' },
+        { name: 'Fala com Jandir – tributação FIP', status: 'Não iniciado', priority: null, prazo: null, tags: ['CVC'], desc: 'Aline Araújo está estudando', url: 'https://www.notion.so/35d1099f554d80ba8db0d8fea70b9b25' },
+        { name: 'Contatos Tangho – Klabin + Suzano', status: 'Não iniciado', priority: null, prazo: null, tags: ['CVC'], desc: '', url: 'https://www.notion.so/3581099f554d8098a6a5c11f4c9e0ec2' },
+        { name: 'Call Betina', status: 'Não iniciado', priority: null, prazo: null, tags: ['Geral'], desc: '', url: 'https://www.notion.so/3541099f554d806ead97ffcd1dcd1a84' },
+        { name: 'Visto EUA', status: 'Em andamento', priority: null, prazo: null, tags: ['Geral'], desc: '', url: 'https://www.notion.so/3541099f554d80eebea7c1429432162d' },
+        { name: 'NDA Veridi', status: 'Não iniciado', priority: null, prazo: null, tags: ['CVC'], desc: '', url: 'https://www.notion.so/34f1099f554d80b3bf10f94f966050e1' },
+        { name: 'NDA InPlannet', status: 'Não iniciado', priority: null, prazo: null, tags: ['CVC'], desc: 'Com Guilherme', url: 'https://www.notion.so/34b1099f554d800b827bfe1e6936eefc' },
+        { name: 'Valetec – Falar com clientes', status: 'Em andamento', priority: null, prazo: null, tags: ['CVC','Ventures 2.0'], desc: '', url: 'https://www.notion.so/32d1099f554d80039ceffdfb06a7459c' },
+        { name: 'Olhar cursos – Agentes e Valuation', status: 'Não iniciado', priority: null, prazo: null, tags: ['Geral'], desc: '', url: 'https://www.notion.so/3331099f554d80779d2af8aa0fb890ed' },
+        { name: 'Estudo CVB – Slides p/ Pavinato', status: 'Em andamento', priority: null, prazo: null, tags: ['CVB','Ventures 2.0'], desc: 'Larissa', url: 'https://www.notion.so/3181099f554d807e9e4bf3559dcbcd5b' },
+        { name: 'Apresentar Agrotech Park p/ comitê de comunicação', status: 'Não iniciado', priority: null, prazo: null, tags: ['Agrotech Park'], desc: 'Frederico', url: 'https://www.notion.so/3131099f554d80f48a51fbcac73dec18' },
+        { name: 'Ajustar site SLC Ventures – Horizonte SLC', status: 'Em andamento', priority: null, prazo: null, tags: ['Geral'], desc: 'Larissa', url: 'https://www.notion.so/3191099f554d809bbdf0ef2636559a85' },
+        { name: 'Planejamento saída Frederico – 2027', status: 'Não iniciado', priority: null, prazo: null, tags: ['Geral'], desc: '', url: 'https://www.notion.so/33b1099f554d803994cbc432cb805504' },
+        { name: 'Fluxo caixa Fluere', status: 'Lembrete', priority: '1. Alta', prazo: null, tags: ['Fluere'], desc: '', url: 'https://www.notion.so/3101099f554d80229744e17f7edc766c' },
+        { name: 'Lembrar aporte Moray (05/05/2026)', status: 'Lembrete', priority: '2. Média', prazo: '2026-04-30', tags: ['Moray'], desc: '', url: 'https://www.notion.so/da0014f851e948c6b976ecedf2928ee1' },
+        { name: 'Lembrar aporte Moray (05/07/2026)', status: 'Lembrete', priority: '2. Média', prazo: '2026-06-30', tags: ['Moray'], desc: '', url: 'https://www.notion.so/a1ed84ec0a834cc4873bce0c9b33ad7c' },
+        { name: 'Lembrar aporte Moray (05/09/2026)', status: 'Lembrete', priority: '2. Média', prazo: '2026-08-31', tags: ['Moray'], desc: '', url: 'https://www.notion.so/4fb6368c41bf4ca792b794258a18f1df' },
+      ]
+    },
+    {
+      id: 'condominio',
+      name: 'Tarefas Condomínio Michelle',
+      icon: '🏢',
+      url: 'https://www.notion.so/33b1099f554d806f8e52fbf95426b513',
+      tasks: [
+        { name: 'Serviço de manutenção dos elevadores', status: 'Em andamento', priority: 'Alta', prazo: null, tags: ['Manutenção'], desc: 'Negociado com TK – falta assinar contrato', url: 'https://www.notion.so/33d1099f554d80bfbe1bd11a9b9db161' },
+        { name: 'Reparo porta elevador serviço', status: 'Em andamento', priority: 'Alta', prazo: '2026-06-15', tags: ['Manutenção','Segurança'], desc: 'TKE R$6.561 em 12x – 45 dias p/ instalação', url: 'https://www.notion.so/9e3e899c3ea3422b92b9a75139feb443' },
+        { name: 'Infiltração 3º para 2º andar', status: 'Em andamento', priority: 'Alta', prazo: '2026-04-17', tags: ['Manutenção'], desc: '1ª visita realizada 8/5 – falar com 401', url: 'https://www.notion.so/a1dfc60705414db5bb173a1df80bd221' },
+        { name: 'Convocar AGE', status: 'Em andamento', priority: 'Alta', prazo: null, tags: [], desc: 'Aprovar chamada extra – terça 02/06 online', url: 'https://www.notion.so/35a1099f554d8052b5f3f7e8765c6722' },
+        { name: 'Ação trabalhista Sandra', status: 'Não iniciado', priority: 'Alta', prazo: null, tags: [], desc: 'Advogada: R$5.000', url: 'https://www.notion.so/35a1099f554d80e3b1d9c1b7876dbd3a' },
+        { name: 'Elaborar projeção de fluxo de caixa', status: 'Em andamento', priority: 'Média', prazo: null, tags: [], desc: 'Considerando despesas extras planejadas', url: 'https://www.notion.so/33d1099f554d8077983efc87c16a14e6' },
+        { name: 'Pintura gradil frontal + reparos', status: 'Em andamento', priority: 'Média', prazo: null, tags: ['Manutenção'], desc: 'Felipe Carvalho – R$14.100 – Aprovado', url: 'https://www.notion.so/694a11a45f3047b68b9bba666c742352' },
+        { name: 'Engenheiro para serviço fachada', status: 'Em andamento', priority: 'Média', prazo: null, tags: ['Reforma / Obra'], desc: 'Eng. Marcelo R$3.500 – segurar p/ outras despesas', url: 'https://www.notion.so/c233c2bae5c049129c5d60c326e338c0' },
+        { name: 'Executar PPCI', status: 'Em andamento', priority: 'Média', prazo: null, tags: ['Obrigatório'], desc: 'Eng. Renata R$3.200 – Aprovado', url: 'https://www.notion.so/33c1099f554d80fe8222c98bc54a9286' },
+        { name: 'Reparo buraco fachada ap 401, 702 e 802', status: 'Não iniciado', priority: 'Média', prazo: null, tags: [], desc: 'Enviar notificações', url: 'https://www.notion.so/35a1099f554d8011aa79c9e8dda7bd30' },
+        { name: 'Orçar fechadura/puxador da porta frontal', status: 'Não iniciado', priority: 'Baixa', prazo: null, tags: [], desc: 'Reparar antes da pintura – chamar serralheiro', url: 'https://www.notion.so/33d1099f554d803fb9c5d0014937307f' },
+        { name: 'Recuperação pedras soltas calçada', status: 'Não iniciado', priority: 'Baixa', prazo: null, tags: ['Manutenção','Segurança'], desc: '', url: 'https://www.notion.so/e354797dac5748288760056b2b54d9d4' },
+        { name: 'Decorar hall entrada', status: 'Não iniciado', priority: 'Baixa', prazo: null, tags: ['Estético'], desc: 'Vizinhas ficaram de enviar sugestão p/ Fernanda', url: 'https://www.notion.so/33c1099f554d80218ce9d1b0b1a87815' },
+        { name: 'Contratar jardineiro periódico', status: 'Em andamento', priority: 'Baixa', prazo: null, tags: [], desc: 'Frequência a cada 2 meses', url: 'https://www.notion.so/33c1099f554d80c3a27ddc20f5d0dcc2' },
+        { name: 'Inclusão câmeras na garagem inferior', status: 'Não iniciado', priority: 'Baixa', prazo: null, tags: [], desc: '', url: 'https://www.notion.so/35a1099f554d8076849ced4029cf08af' },
+        { name: 'Piso garagem inferior', status: 'Não iniciado', priority: 'Baixa', prazo: null, tags: [], desc: '', url: 'https://www.notion.so/35a1099f554d80c69ed1c906bb1b64d2' },
+      ]
+    },
+    {
+      id: 'cagap',
+      name: 'Tarefas CA GAP',
+      icon: '🏗️',
+      url: 'https://www.notion.so/3221099f554d805eadc5d32e97dcd87a',
+      tasks: [
+        { name: 'Criar wireframes da página inicial', status: 'Em Andamento', priority: 'Alta', prazo: '2026-03-15', tags: ['Design'], desc: '', url: 'https://www.notion.so/3221099f554d8078846dee38843aab0d' },
+        { name: 'Implementar sistema de navegação responsivo', status: 'A Fazer', priority: 'Alta', prazo: '2026-03-17', tags: ['Desenvolvimento'], desc: '', url: 'https://www.notion.so/3221099f554d80998c1eeb48a0f6147a' },
+        { name: 'Conferir se Mandiyu está no total de Há da GAP no Balanço', status: 'A Fazer', priority: 'Média', prazo: '2025-11-30', tags: ['Testes'], desc: 'MML', url: 'https://www.notion.so/a61037f6b7444c458867bef54a574ed1' },
+        { name: 'Seguir vendendo arroz para o governo', status: 'A Fazer', priority: 'Média', prazo: '2025-11-30', tags: ['Conteúdo'], desc: 'Rafa', url: 'https://www.notion.so/9e846611acec448aa91e06c103645026' },
+        { name: 'Passar contato de fornecedor de peças e treinamento de máquinas', status: 'A Fazer', priority: 'Média', prazo: '2025-11-30', tags: ['Infraestrutura'], desc: 'Ricardo', url: 'https://www.notion.so/9456bdad5c0d4aba9ea300a10535be9a' },
+        { name: 'Buscar assinatura do Junior – regularização terreno Guaíba', status: 'A Fazer', priority: 'Média', prazo: '2025-11-30', tags: ['Infraestrutura'], desc: 'Ricardo', url: 'https://www.notion.so/0a1e4a14e94d4e049d8adbfc285e95fe' },
+        { name: 'Reunir com Pablo e evoluir negociação com a Engie', status: 'A Fazer', priority: 'Média', prazo: '2025-11-30', tags: ['Infraestrutura'], desc: 'PZL', url: 'https://www.notion.so/8b5cc39ddc7040a7b1c4fc6e3988ec12' },
+        { name: 'Levantar os números da lavoura de arroz da MDY', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Conteúdo'], desc: 'Rafa', url: 'https://www.notion.so/7adf02050f5440b0986af1a28f70516b' },
+        { name: 'Análise de resultado do corte do Plínio (1ha de mato para tora)', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Testes'], desc: 'Rafa', url: 'https://www.notion.so/02c5b3e820af4300b40999c6dc76ff7a' },
+        { name: 'Estudar futuro das contas mútuos no banco GAP', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'Cons ADM', url: 'https://www.notion.so/365bf5ed115f4306a6a14528379a7b1d' },
+        { name: 'Passar proposta de liquidação dos mútuos p/ Conselho ADM', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'PZL', url: 'https://www.notion.so/c8929a7697354cb49f66ad686beaa49b' },
+        { name: 'Estudo de como serão passados créditos das contas particulares', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'PZL', url: 'https://www.notion.so/d288019c82ec4dabb55a563adb68d6a3' },
+        { name: 'Apresentar DRE e Balanço Patrimonial p/ Acionistas', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Conteúdo'], desc: 'MML', url: 'https://www.notion.so/0e954cc219af44baa0a1f2a0e2b804f8' },
+        { name: 'Nomear responsável p/ conferir acertos anuais da Hectare', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'MML', url: 'https://www.notion.so/22b7eec5df9f4f80ab445d53cfc8d40b' },
+        { name: 'Novo arranjo societário (20/09 e Linhares e Pons)', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'Affectum', url: 'https://www.notion.so/6ff62e39656344ae960eb80061878fb3' },
+        { name: 'Documento de quitação de dívida da Lucia', status: 'A Fazer', priority: 'Média', prazo: '2025-12-31', tags: ['Infraestrutura'], desc: 'Affectum', url: 'https://www.notion.so/4c0763f365874798a7b5ae2fc38bfdda' },
+        { name: 'Nova análise para definir preço de venda', status: 'A Fazer', priority: 'Média', prazo: '2026-01-31', tags: ['Conteúdo'], desc: 'Cons ADM', url: 'https://www.notion.so/dd2f171522a144c6845e417bd56db666' },
+        { name: 'Abrir conta no banco para empresa 20/09', status: 'A Fazer', priority: 'Média', prazo: '2026-01-31', tags: ['Infraestrutura'], desc: 'MML/PZL', url: 'https://www.notion.so/21d11e4b605549318f69b1cfcf7c3b9a' },
+        { name: 'Eliminar c/c IBL (após assinatura e formalização)', status: 'A Fazer', priority: 'Média', prazo: null, tags: ['Infraestrutura'], desc: 'MML/PZL', url: 'https://www.notion.so/724ad21f233048a59110eec59c0affe2' },
+      ]
+    }
+  ],
+  reminderLists: [
+    { id: 'rem1', name: 'Lista 1 – iPhone Reminders', icon: '📱', placeholder: true },
+    { id: 'rem2', name: 'Lista 2 – iPhone Reminders', icon: '📱', placeholder: true },
+  ]
+};
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+let activeFilter = 'all';
+
+function buildTaskHTML(task) {
+  const overdue = isOverdue(task.prazo);
+  const statusKey = task.status;
+
+  const pClass = task.priority ? 'p-' + task.priority.replace(/\s/g, '\\ ') : 'p-none';
+
+  const statusHtml = statusBadge(statusKey);
+
+  const tagsHtml = task.tags.map(t => `<span class="badge badge-tag">${t}</span>`).join('');
+
+  let dateHtml = '';
+  if (task.prazo) {
+    const cls = overdue ? 'badge-overdue' : 'badge-date';
+    const prefix = overdue ? '⚠ Venceu ' : '';
+    dateHtml = `<span class="badge ${cls}">${prefix}${fmt(task.prazo)}</span>`;
+  }
+
+  const descHtml = task.desc ? `<div class="task-desc">${task.desc}</div>` : '';
+
+  const doingStatuses = ['Em andamento', 'Em Andamento', 'Em Revisão'];
+  const isDoing = doingStatuses.includes(task.status);
+  const isOverdueTask = overdue;
+
+  return `
+    <a class="task-item" href="${task.url}" target="_blank" rel="noopener"
+       data-status="${task.status.toLowerCase()}"
+       data-doing="${isDoing}"
+       data-overdue="${isOverdueTask}"
+       data-name="${task.name.toLowerCase()}">
+      <div class="task-left">
+        <span class="priority-dot ${pClass}"></span>
+        <div class="task-body">
+          <div class="task-name">${task.name}</div>
+          ${descHtml}
+          <div class="task-meta">
+            ${statusHtml}
+            ${tagsHtml}
+            ${dateHtml}
+          </div>
+        </div>
+      </div>
+      <svg class="ext-link" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    </a>`;
+}
+
+function buildListCard(list) {
+  const tasksHtml = list.tasks.map(buildTaskHTML).join('');
+  const count = list.tasks.length;
+  const countCls = count === 0 ? 'zero' : '';
+  return `
+    <div class="list-card" id="card-${list.id}">
+      <div class="list-header">
+        <span class="list-icon">${list.icon}</span>
+        <div class="list-meta">
+          <div class="list-name">${list.name}</div>
+          <div class="list-source">Notion</div>
+        </div>
+        <a href="${list.url}" target="_blank" rel="noopener">
+          <span class="list-count ${countCls}" id="count-${list.id}">${count}</span>
+        </a>
+      </div>
+      <div class="tasks" id="tasks-${list.id}">${tasksHtml || '<div class="empty-state">Nenhuma tarefa ativa</div>'}</div>
+    </div>`;
+}
+
+function buildPlaceholderCard(list) {
+  return `
+    <div class="list-card placeholder" id="card-${list.id}">
+      <div class="list-header">
+        <span class="list-icon">${list.icon}</span>
+        <div class="list-meta">
+          <div class="list-name">${list.name}</div>
+          <div class="list-source">iPhone Lembretes</div>
+        </div>
+        <span class="list-count zero">—</span>
+      </div>
+      <div class="placeholder-body">
+        <div class="ph-icon">⏳</div>
+        <p><strong>Integração pendente</strong><br/>Me conta qual lista do Reminders você quer conectar e configuramos juntos.</p>
+      </div>
+    </div>`;
+}
+
+function renderAll() {
+  const gn = document.getElementById('grid-notion');
+  const gr = document.getElementById('grid-reminders');
+  gn.innerHTML = DATA.notionLists.map(buildListCard).join('');
+  gr.innerHTML = DATA.reminderLists.map(buildPlaceholderCard).join('');
+
+  const d = new Date('2026-05-23');
+  document.getElementById('updated-at').textContent = 'Atualizado em ' + d.toLocaleDateString('pt-BR');
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function filterTasks() { applyFilters(); }
+
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  DATA.notionLists.forEach(list => {
+    const items = document.querySelectorAll(`#tasks-${list.id} .task-item`);
+    let visible = 0;
+    items.forEach(item => {
+      const name = item.dataset.name;
+      const doing = item.dataset.doing === 'true';
+      const overdue = item.dataset.overdue === 'true';
+
+      const matchSearch = !q || name.includes(q);
+      let matchFilter = true;
+      if (activeFilter === 'doing') matchFilter = doing;
+      if (activeFilter === 'overdue') matchFilter = overdue;
+
+      const show = matchSearch && matchFilter;
+      item.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const countEl = document.getElementById(`count-${list.id}`);
+    if (countEl) {
+      countEl.textContent = visible;
+      countEl.className = 'list-count' + (visible === 0 ? ' zero' : '');
+    }
+
+    // empty state
+    const tasksEl = document.getElementById(`tasks-${list.id}`);
+    let emptyEl = tasksEl.querySelector('.empty-state');
+    if (visible === 0) {
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.className = 'empty-state';
+        emptyEl.textContent = 'Nenhuma tarefa encontrada';
+        tasksEl.appendChild(emptyEl);
+      }
+    } else if (emptyEl) {
+      emptyEl.remove();
+    }
+  });
+}
+
+renderAll();
+</script>
+</body>
+</html>
