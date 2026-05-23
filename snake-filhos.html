@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake dos Filhos 🐍</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Press Start 2P', monospace;
+      color: #39ff14;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* HUD wrapper — same width as canvas + border */
+    #hud { width: 604px; }
+
+    /* Top row: current score left, high score right */
+    #row-scores {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 8px;
+      font-size: 10px;
+      gap: 8px;
+    }
+
+    #score-el   { color: #39ff14; text-shadow: 0 0 8px #39ff14; white-space: nowrap; }
+    #hiscore-el { color: #ffd700; text-shadow: 0 0 8px #ffd700; white-space: nowrap; }
+
+    /* Second row: new-record badge left, last-collected right */
+    #row-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 8px;
+      min-height: 30px;
+      font-size: 8px;
+    }
+
+    #newrec-el {
+      color: #ffd700;
+      text-shadow: 0 0 10px #ffd700;
+      animation: blink 0.45s ease-in-out infinite alternate;
+      display: none;
+    }
+    @keyframes blink { to { opacity: 0.12; } }
+
+    #last-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #aaffaa;
+    }
+    #last-label { display: none; }
+
+    #last-img {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      object-fit: cover;
+      display: none;
+      box-shadow: 0 0 5px rgba(255,255,255,.4);
+    }
+    #last-em { font-size: 20px; display: none; }
+
+    /* Canvas glowing border */
+    #canvas-wrap {
+      border: 2px solid #39ff14;
+      border-radius: 4px;
+      box-shadow:
+        0 0 8px #39ff14,
+        0 0 22px rgba(57,255,20,.45),
+        0 0 55px rgba(57,255,20,.15),
+        inset 0 0 8px rgba(57,255,20,.04);
+      line-height: 0;
+    }
+
+    canvas { display: block; border-radius: 3px; background: #0a0a0f; }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  <!-- Score row -->
+  <div id="row-scores">
+    <span id="score-el">SCORE: 0</span>
+    <span id="hiscore-el">HIGH SCORE: 0</span>
+  </div>
+  <!-- Meta row -->
+  <div id="row-meta">
+    <span id="newrec-el">🏆 NOVO RECORDE!</span>
+    <div id="last-wrap">
+      <span id="last-label">LAST:</span>
+      <img id="last-img" alt="">
+      <span id="last-em"></span>
+    </div>
+  </div>
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="cv" width="600" height="600"></canvas>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   CONFIG
+   ================================================================ */
+const CFG = {
+  W: 600, H: 600,
+  COLS: 20, ROWS: 20,
+  CELL: 30,           // 600 / 20
+  INIT_SPD: 150,      // ms per tick
+  MIN_SPD:   60,
+  SPD_STEP:   5,      // ms faster
+  SPD_EVERY:  5,      // every N points
+  INIT_LEN:   3,
+  SNAKE:  '#39ff14',
+  HEAD:   '#80ff00',
+  BG:     '#0a0a0f',
+  GRID:   'rgba(57,255,20,0.05)',
+  AVR:    12,         // avatar radius px
+};
+
+const ST = { START: 0, PLAYING: 1, PAUSED: 2, OVER: 3 };
+
+/* ================================================================
+   CANVAS
+   ================================================================ */
+const cv = document.getElementById('cv');
+const cx = cv.getContext('2d');
+
+/* ================================================================
+   IMAGE LOADING — filho1.jpg / filho2.jpg
+   Each image auto-falls back to emoji if it fails to load.
+   ================================================================ */
+const IMG  = [new Image(), new Image()];
+const iOK  = [false, false];   // loaded successfully
+const iFAIL= [false, false];   // failed to load
+
+IMG[0].onload  = () => iOK[0]   = true;
+IMG[0].onerror = () => iFAIL[0] = true;
+IMG[1].onload  = () => iOK[1]   = true;
+IMG[1].onerror = () => iFAIL[1] = true;
+IMG[0].src = 'filho1.jpg';
+IMG[1].src = 'filho2.jpg';
+
+const EMOJI = ['👦', '🧒'];   // fallback per son
+
+/* ================================================================
+   WEB AUDIO  (programmatic beeps — no audio files)
+   ================================================================ */
+let AC = null;
+function getAC() {
+  if (!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  return AC;
+}
+function tone(hz, dur, wave = 'sine', vol = 0.12) {
+  const a = getAC(); if (!a) return;
+  try {
+    const o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type = wave; o.frequency.value = hz;
+    g.gain.setValueAtTime(vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+    o.start(); o.stop(a.currentTime + dur);
+  } catch (e) {}
+}
+const sfxEat = () => { tone(880, .07); setTimeout(() => tone(1108, .1), 70); };
+const sfxDie = () => { tone(220, .3, 'sawtooth', .15); setTimeout(() => tone(140, .5, 'sawtooth', .1), 250); };
+
+/* ================================================================
+   PERSISTENCE
+   ================================================================ */
+const KEY_HS = 'snakeDosFilhosHS';
+const loadHS = () => parseInt(localStorage.getItem(KEY_HS) || '0', 10);
+const saveHS = v => localStorage.setItem(KEY_HS, String(v));
+
+/* ================================================================
+   GAME STATE  (single object)
+   ================================================================ */
+let G = {};           // filled by newGame() / boot
+let tickTimer = null;
+let pulse = 0;        // phase for pulsing glow
+
+function buildSnake() {
+  // Start with INIT_LEN segments heading right from x=3
+  const s = [];
+  for (let i = 0; i < CFG.INIT_LEN; i++) s.push({ x: 3 + i, y: 10 });
+  return s;
+}
+
+function freeCell(snake) {
+  const used = new Set(snake.map(s => s.x + ',' + s.y));
+  let p;
+  do { p = { x: (Math.random() * CFG.COLS) | 0, y: (Math.random() * CFG.ROWS) | 0 }; }
+  while (used.has(p.x + ',' + p.y));
+  return p;
+}
+
+function newGame() {
+  clearTimeout(tickTimer);
+  el('newrec-el').style.display = 'none';
+
+  const snake = buildSnake();
+  G = {
+    st:     ST.PLAYING,
+    snake,
+    dir:    { x: 1, y: 0 },
+    ndir:   { x: 1, y: 0 },  // next (buffered) direction
+    food:   freeCell(snake),
+    ftype:  (Math.random() < .5 ? 0 : 1), // 0=filho1, 1=filho2
+    score:  0,
+    hs:     loadHS(),
+    spd:    CFG.INIT_SPD,
+    floats: [],               // floating "+1" text animations
+    newRec: false,
+  };
+
+  uiScore();
+  scheduleTick();
+}
+
+/* ================================================================
+   GAME LOOP  (setTimeout — fixed speed, as specified)
+   ================================================================ */
+function scheduleTick() {
+  tickTimer = setTimeout(tick, G.spd);
+}
+
+function tick() {
+  if (G.st !== ST.PLAYING) return;
+
+  // Apply buffered direction
+  G.dir = { ...G.ndir };
+
+  const head = G.snake[G.snake.length - 1];
+  const nh = {
+    x: (head.x + G.dir.x + CFG.COLS) % CFG.COLS,  // wrap edges
+    y: (head.y + G.dir.y + CFG.ROWS) % CFG.ROWS,
+  };
+
+  // Self-collision → game over
+  if (G.snake.some(s => s.x === nh.x && s.y === nh.y)) {
+    G.st = ST.OVER;
+    sfxDie();
+    return;
+  }
+
+  G.snake.push(nh);
+
+  if (nh.x === G.food.x && nh.y === G.food.y) {
+    // === ATE FOOD ===
+    G.score++;
+
+    // Show last-collected avatar in HUD
+    uiLastCollected(G.ftype);
+
+    // Spawn floating "+1" text at food position
+    G.floats.push({ x: G.food.x * CFG.CELL + CFG.CELL / 2, y: G.food.y * CFG.CELL + CFG.CELL / 2, life: 1 });
+
+    // Speed up every N points
+    if (G.score % CFG.SPD_EVERY === 0)
+      G.spd = Math.max(CFG.MIN_SPD, G.spd - CFG.SPD_STEP);
+
+    // High score
+    if (G.score > G.hs) {
+      G.hs = G.score;
+      saveHS(G.hs);
+      G.newRec = true;
+    }
+
+    sfxEat();
+    G.food  = freeCell(G.snake);
+    G.ftype = (Math.random() < .5 ? 0 : 1);
+    uiScore();
+  } else {
+    G.snake.shift(); // normal move — remove tail
+  }
+
+  scheduleTick();
+}
+
+/* ================================================================
+   DOM HELPERS
+   ================================================================ */
+const el = id => document.getElementById(id);
+
+function uiScore() {
+  el('score-el').textContent   = `SCORE: ${G.score}`;
+  el('hiscore-el').textContent = `HIGH SCORE: ${G.hs}`;
+  if (G.newRec) el('newrec-el').style.display = 'inline';
+}
+
+function uiLastCollected(ft) {
+  el('last-label').style.display = 'inline';
+  const ok = iOK[ft] && !iFAIL[ft];
+  const imgEl = el('last-img'), emEl = el('last-em');
+  if (ok) {
+    imgEl.src = IMG[ft].src;
+    imgEl.style.display = 'inline-block';
+    emEl.style.display  = 'none';
+  } else {
+    imgEl.style.display = 'none';
+    emEl.textContent    = EMOJI[ft];
+    emEl.style.display  = 'inline';
+  }
+}
+
+/* ================================================================
+   RENDER  (requestAnimationFrame — smooth visuals)
+   ================================================================ */
+function render() {
+  pulse = (pulse + 0.05) % (Math.PI * 2);
+
+  // Advance floating text animations (purely visual, safe to do here)
+  G.floats = G.floats
+    .map(f => ({ ...f, life: f.life - 0.022, y: f.y - 0.8 }))
+    .filter(f => f.life > 0);
+
+  // Clear
+  cx.fillStyle = CFG.BG;
+  cx.fillRect(0, 0, CFG.W, CFG.H);
+
+  drawGrid();
+
+  switch (G.st) {
+    case ST.START:   drawStartScreen(); break;
+    case ST.PLAYING: drawPlay();        break;
+    case ST.PAUSED:  drawPlay(); drawPauseOverlay(); break;
+    case ST.OVER:    drawPlay(); drawGameOverScreen(); break;
+  }
+
+  requestAnimationFrame(render);
+}
+
+/* ── Grid ─────────────────────────────────────────────────────── */
+function drawGrid() {
+  cx.strokeStyle = CFG.GRID;
+  cx.lineWidth   = 0.5;
+  for (let i = 0; i <= CFG.COLS; i++) {
+    const p = i * CFG.CELL;
+    cx.beginPath(); cx.moveTo(p, 0); cx.lineTo(p, CFG.H); cx.stroke();
+    cx.beginPath(); cx.moveTo(0, p); cx.lineTo(CFG.W, p); cx.stroke();
+  }
+}
+
+/* ── Gameplay layer ───────────────────────────────────────────── */
+function drawPlay() {
+  drawFood();
+  drawSnake();
+  drawFloats();
+}
+
+/* ── Rounded rectangle helper ─────────────────────────────────── */
+function rrect(x, y, w, h, r) {
+  cx.beginPath();
+  cx.moveTo(x + r, y);
+  cx.lineTo(x + w - r, y); cx.quadraticCurveTo(x + w, y,   x + w, y + r);
+  cx.lineTo(x + w, y + h - r); cx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  cx.lineTo(x + r, y + h); cx.quadraticCurveTo(x,   y + h, x,   y + h - r);
+  cx.lineTo(x,   y + r); cx.quadraticCurveTo(x,   y,   x + r, y);
+  cx.closePath();
+}
+
+/* ── Snake ────────────────────────────────────────────────────── */
+function drawSnake() {
+  const s = G.snake;
+
+  // Body segments
+  cx.shadowColor = CFG.SNAKE;
+  cx.shadowBlur  = 10;
+  cx.fillStyle   = CFG.SNAKE;
+  for (let i = 0; i < s.length - 1; i++) {
+    rrect(s[i].x * CFG.CELL + 1, s[i].y * CFG.CELL + 1, CFG.CELL - 2, CFG.CELL - 2, 6);
+    cx.fill();
+  }
+
+  // Head — slightly larger glow + brighter colour
+  const h = s[s.length - 1];
+  const hx = h.x * CFG.CELL, hy = h.y * CFG.CELL;
+  cx.shadowColor = '#aaffaa'; cx.shadowBlur = 18; cx.fillStyle = CFG.HEAD;
+  rrect(hx + .5, hy + .5, CFG.CELL - 1, CFG.CELL - 1, 8);
+  cx.fill();
+  cx.shadowBlur = 0;
+
+  // Eyes — positioned according to movement direction
+  const d = G.dir, mx = hx + CFG.CELL / 2, my = hy + CFG.CELL / 2;
+  let e1, e2;
+  if      (d.x ===  1) { e1 = { x: mx + 7, y: my - 7 }; e2 = { x: mx + 7, y: my + 7 }; }
+  else if (d.x === -1) { e1 = { x: mx - 7, y: my - 7 }; e2 = { x: mx - 7, y: my + 7 }; }
+  else if (d.y === -1) { e1 = { x: mx - 7, y: my - 7 }; e2 = { x: mx + 7, y: my - 7 }; }
+  else                 { e1 = { x: mx - 7, y: my + 7 }; e2 = { x: mx + 7, y: my + 7 }; }
+
+  cx.fillStyle = '#000';
+  [e1, e2].forEach(e => { cx.beginPath(); cx.arc(e.x, e.y, 3, 0, Math.PI * 2); cx.fill(); });
+  cx.fillStyle = '#fff';  // pupil highlight
+  [e1, e2].forEach(e => { cx.beginPath(); cx.arc(e.x + 1, e.y - 1, 1, 0, Math.PI * 2); cx.fill(); });
+}
+
+/* ── Food / avatar ────────────────────────────────────────────── */
+function drawFood() {
+  const f = G.food; if (!f) return;
+  const px = f.x * CFG.CELL + CFG.CELL / 2, py = f.y * CFG.CELL + CFG.CELL / 2;
+  const r  = CFG.AVR;
+  const p  = Math.sin(pulse) * .5 + .5;               // 0–1 pulsing value
+  const ok = iOK[G.ftype] && !iFAIL[G.ftype];
+  const glowCol = G.ftype === 0
+    ? `rgba(255,160,80,${.35 + p * .55})`
+    : `rgba(80,160,255,${.35 + p * .55})`;
+
+  cx.shadowColor = glowCol;
+  cx.shadowBlur  = 6 + p * 16;
+
+  if (ok) {
+    // Circular photo crop
+    cx.save();
+    cx.beginPath(); cx.arc(px, py, r, 0, Math.PI * 2); cx.clip();
+    cx.drawImage(IMG[G.ftype], px - r, py - r, r * 2, r * 2);
+    cx.restore();
+  } else {
+    // Emoji fallback — coloured circle behind emoji
+    cx.fillStyle = G.ftype === 0 ? '#ff9966' : '#66aaff';
+    cx.beginPath(); cx.arc(px, py, r + 2, 0, Math.PI * 2); cx.fill();
+    cx.shadowBlur = 0;
+    cx.font = `${(r * 1.3) | 0}px serif`;
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(EMOJI[G.ftype], px, py + 1);
+  }
+
+  // White border ring
+  cx.shadowBlur = 0;
+  cx.beginPath(); cx.arc(px, py, ok ? r : r + 2, 0, Math.PI * 2);
+  cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.stroke();
+}
+
+/* ── Floating "+1" text ───────────────────────────────────────── */
+function drawFloats() {
+  G.floats.forEach(f => {
+    cx.save();
+    cx.globalAlpha = f.life;
+    cx.fillStyle    = '#fff';
+    cx.shadowColor  = '#39ff14';
+    cx.shadowBlur   = 8;
+    cx.font         = 'bold 13px "Press Start 2P", monospace';
+    cx.textAlign    = 'center';
+    cx.textBaseline = 'middle';
+    cx.fillText('+1', f.x, f.y);
+    cx.restore();
+  });
+}
+
+/* ── Screen helpers ───────────────────────────────────────────── */
+function dim(a = .78) {
+  cx.fillStyle = `rgba(10,10,15,${a})`;
+  cx.fillRect(0, 0, CFG.W, CFG.H);
+}
+
+function ctxt(str, y, sz, col, glow = 0) {
+  cx.font            = `${sz}px "Press Start 2P", monospace`;
+  cx.fillStyle       = col;
+  cx.textAlign       = 'center';
+  cx.textBaseline    = 'middle';
+  if (glow) { cx.shadowColor = col; cx.shadowBlur = glow; }
+  cx.fillText(str, CFG.W / 2, y);
+  cx.shadowBlur = 0;
+}
+
+const blink = () => Math.floor(Date.now() / 600) % 2 === 1;
+
+/* ── Start screen ─────────────────────────────────────────────── */
+function drawStartScreen() {
+  dim(.90);
+  ctxt('SNAKE DOS FILHOS', 158, 18, '#39ff14', 20);
+  // Snake emoji accent
+  cx.font = '34px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillText('🐍', CFG.W / 2, 208); cx.shadowBlur = 0;
+
+  ctxt('USE AS SETAS PARA MOVER',  285, 8, '#aaffaa');
+  ctxt('COME AS FOTOS DOS FILHOS', 315, 8, '#aaffaa');
+  ctxt('P  =  PAUSAR / RESUMIR',   345, 8, '#aaffaa');
+
+  if (blink()) ctxt('PRESSIONE  ENTER', 428, 9, '#39ff14', 10);
+
+  ctxt(`RECORDE: ${loadHS()}`, 508, 8, '#ffd700', 6);
+}
+
+/* ── Pause overlay ────────────────────────────────────────────── */
+function drawPauseOverlay() {
+  dim(.62);
+  ctxt('PAUSADO',      CFG.H / 2 - 22, 22, '#39ff14', 16);
+  ctxt('P = CONTINUAR', CFG.H / 2 + 42,  8, '#aaffaa');
+}
+
+/* ── Game over screen ─────────────────────────────────────────── */
+function drawGameOverScreen() {
+  dim(.84);
+  ctxt('FIM DE JOGO!',         180, 18, '#ff4444', 20);
+  ctxt(`PONTOS: ${G.score}`,   262, 11, '#ffffff');
+  ctxt(`RECORDE: ${G.hs}`,     308, 10, '#ffd700', 7);
+  if (G.newRec) ctxt('🏆 NOVO RECORDE!', 358, 9, '#ffd700', 12);
+  if (blink())  ctxt('ENTER  =  REINICIAR', 442, 8, '#39ff14', 8);
+}
+
+/* ================================================================
+   INPUT
+   ================================================================ */
+document.addEventListener('keydown', e => {
+  // Prevent arrow keys / space from scrolling the page
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key))
+    e.preventDefault();
+
+  if (e.key === 'Enter') {
+    getAC();  // resume AudioContext on first user gesture (browser policy)
+    if (G.st === ST.START || G.st === ST.OVER) {
+      newGame();
+    }
+    return;
+  }
+
+  if (e.key === 'p' || e.key === 'P') {
+    if (G.st === ST.PLAYING) {
+      G.st = ST.PAUSED;
+      clearTimeout(tickTimer);
+    } else if (G.st === ST.PAUSED) {
+      G.st = ST.PLAYING;
+      scheduleTick();
+    }
+    return;
+  }
+
+  if (G.st !== ST.PLAYING) return;
+
+  // Direction input — cannot reverse into self
+  const d = G.dir;
+  switch (e.key) {
+    case 'ArrowUp':    if (d.y !==  1) G.ndir = { x:  0, y: -1 }; break;
+    case 'ArrowDown':  if (d.y !== -1) G.ndir = { x:  0, y:  1 }; break;
+    case 'ArrowLeft':  if (d.x !==  1) G.ndir = { x: -1, y:  0 }; break;
+    case 'ArrowRight': if (d.x !== -1) G.ndir = { x:  1, y:  0 }; break;
+  }
+});
+
+/* ================================================================
+   BOOT
+   ================================================================ */
+// Initialise state for the start screen (no tick running yet)
+G = {
+  st: ST.START,
+  snake: [], dir: { x: 1, y: 0 }, ndir: { x: 1, y: 0 },
+  food: null, ftype: 0,
+  score: 0, hs: loadHS(),
+  spd: CFG.INIT_SPD,
+  floats: [], newRec: false,
+};
+
+// Set HUD values from saved high score
+el('score-el').textContent   = 'SCORE: 0';
+el('hiscore-el').textContent = `HIGH SCORE: ${loadHS()}`;
+
+// Kick off the render loop (runs continuously via RAF)
+requestAnimationFrame(render);
+</script>
+
+</body>
+</html>
