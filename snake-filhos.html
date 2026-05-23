@@ -18,12 +18,12 @@
       min-height: 100vh;
       font-family: 'Press Start 2P', monospace;
       color: #39ff14;
-      overflow: hidden;
+      overflow: auto;
       user-select: none;
     }
 
     /* HUD wrapper — same width as canvas + border */
-    #hud { width: 604px; }
+    #hud { width: 804px; }
 
     /* Top row: current score left, high score right */
     #row-scores {
@@ -108,7 +108,7 @@
   </div>
   <!-- Canvas -->
   <div id="canvas-wrap">
-    <canvas id="cv" width="600" height="600"></canvas>
+    <canvas id="cv" width="800" height="800"></canvas>
   </div>
 </div>
 
@@ -119,9 +119,9 @@
    CONFIG
    ================================================================ */
 const CFG = {
-  W: 600, H: 600,
+  W: 800, H: 800,
   COLS: 20, ROWS: 20,
-  CELL: 30,           // 600 / 20
+  CELL: 40,           // 800 / 20
   INIT_SPD: 150,      // ms per tick
   MIN_SPD:   60,
   SPD_STEP:   5,      // ms faster
@@ -131,7 +131,7 @@ const CFG = {
   HEAD:   '#80ff00',
   BG:     '#0a0a0f',
   GRID:   'rgba(57,255,20,0.05)',
-  AVR:    12,         // avatar radius px
+  AVR:    18,         // avatar radius px
 };
 
 const ST = { START: 0, PLAYING: 1, PAUSED: 2, OVER: 3 };
@@ -454,7 +454,7 @@ function drawFloats() {
     cx.fillStyle    = '#fff';
     cx.shadowColor  = '#39ff14';
     cx.shadowBlur   = 8;
-    cx.font         = 'bold 13px "Press Start 2P", monospace';
+    cx.font         = 'bold 16px "Press Start 2P", monospace';
     cx.textAlign    = 'center';
     cx.textBaseline = 'middle';
     cx.fillText('+1', f.x, f.y);
@@ -483,35 +483,35 @@ const blink = () => Math.floor(Date.now() / 600) % 2 === 1;
 /* ── Start screen ─────────────────────────────────────────────── */
 function drawStartScreen() {
   dim(.90);
-  ctxt('SNAKE DOS FILHOS', 158, 18, '#39ff14', 20);
+  ctxt('SNAKE DOS FILHOS', 210, 20, '#39ff14', 22);
   // Snake emoji accent
-  cx.font = '34px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-  cx.fillText('🐍', CFG.W / 2, 208); cx.shadowBlur = 0;
+  cx.font = '42px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillText('🐍', CFG.W / 2, 272); cx.shadowBlur = 0;
 
-  ctxt('USE AS SETAS PARA MOVER',  285, 8, '#aaffaa');
-  ctxt('COME AS FOTOS DOS FILHOS', 315, 8, '#aaffaa');
-  ctxt('P  =  PAUSAR / RESUMIR',   345, 8, '#aaffaa');
+  ctxt('USE AS SETAS PARA MOVER',  370, 9, '#aaffaa');
+  ctxt('COME AS FOTOS DOS FILHOS', 406, 9, '#aaffaa');
+  ctxt('P  =  PAUSAR / RESUMIR',   442, 9, '#aaffaa');
 
-  if (blink()) ctxt('PRESSIONE  ENTER', 428, 9, '#39ff14', 10);
+  if (blink()) ctxt('PRESSIONE  ENTER', 556, 10, '#39ff14', 10);
 
-  ctxt(`RECORDE: ${loadHS()}`, 508, 8, '#ffd700', 6);
+  ctxt(`RECORDE: ${loadHS()}`, 660, 9, '#ffd700', 6);
 }
 
 /* ── Pause overlay ────────────────────────────────────────────── */
 function drawPauseOverlay() {
   dim(.62);
-  ctxt('PAUSADO',      CFG.H / 2 - 22, 22, '#39ff14', 16);
-  ctxt('P = CONTINUAR', CFG.H / 2 + 42,  8, '#aaffaa');
+  ctxt('PAUSADO',       CFG.H / 2 - 26, 26, '#39ff14', 18);
+  ctxt('P = CONTINUAR', CFG.H / 2 + 52,  9, '#aaffaa');
 }
 
 /* ── Game over screen ─────────────────────────────────────────── */
 function drawGameOverScreen() {
   dim(.84);
-  ctxt('FIM DE JOGO!',         180, 18, '#ff4444', 20);
-  ctxt(`PONTOS: ${G.score}`,   262, 11, '#ffffff');
-  ctxt(`RECORDE: ${G.hs}`,     308, 10, '#ffd700', 7);
-  if (G.newRec) ctxt('🏆 NOVO RECORDE!', 358, 9, '#ffd700', 12);
-  if (blink())  ctxt('ENTER  =  REINICIAR', 442, 8, '#39ff14', 8);
+  ctxt('FIM DE JOGO!',           240, 20, '#ff4444', 22);
+  ctxt(`PONTOS: ${G.score}`,     340, 12, '#ffffff');
+  ctxt(`RECORDE: ${G.hs}`,       394, 11, '#ffd700', 7);
+  if (G.newRec) ctxt('🏆 NOVO RECORDE!', 454, 10, '#ffd700', 12);
+  if (blink())  ctxt('ENTER  =  REINICIAR', 580, 9, '#39ff14', 8);
 }
 
 /* ================================================================
