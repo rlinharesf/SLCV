@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Aia</title>
+<style>
+  body { font-family: system-ui, sans-serif; width: 260px; padding: 12px; margin: 0; font-size: 13px; }
+  h1 { font-size: 15px; margin: 0 0 8px; }
+  .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+  .ok { color: #27ae60; font-weight: 600; }
+  .bad { color: #c0392b; font-weight: 600; }
+  a { color: #2c3e50; }
+  small { color: #777; }
+</style>
+</head>
+<body>
+  <h1>Aia · Secretária</h1>
+  <div class="row"><span>Servidor local</span><span id="srv">…</span></div>
+  <div class="row"><span>WhatsApp Web</span><span id="wa">…</span></div>
+  <div class="row"><span>Conta</span><span id="me">…</span></div>
+  <p><a href="http://127.0.0.1:8787/" target="_blank">Abrir painel de status</a></p>
+  <p><small>Se algo estiver OFF: confira se o servidor (<code>npm start</code>) está rodando e se a aba do WhatsApp Web está aberta e logada.</small></p>
+  <script src="popup.js"></script>
+</body>
+</html>
